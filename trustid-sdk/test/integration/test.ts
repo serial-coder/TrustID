@@ -6,13 +6,13 @@ SPDX-License-Identifier: Apache-2.0
 
 */
 import {Wallet} from "../../src/wallet";
-import {AccessPolicy, PolicyType} from "../../src/network/trustInterface";
+import {AccessPolicy, PolicyType} from "../../src/core/trustid";
 import {expect} from "chai";
 
-import {TrustIdHf} from "../../src/network/trustHF";
+import {TrustIdHf} from "../../src/core/trustidHF";
 const path = require("path");
 const fs = require("fs");
-const ccpPath = path.resolve(__dirname, "..", "..", "..", "connection-profile.json");
+const ccpPath = path.resolve(__dirname, "..", "..", "..", "config", "connection-profile.json");
 
 const adminPriv = `-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC7Th71Us2fUkeB
@@ -60,26 +60,20 @@ describe("Integration test", async() => {
 
 		const wal = Wallet.Instance;
 		try {
-			let ccp = JSON.parse(fs.readFileSync(ccpPath, "utf8"));
-			let config = {
-				stateStore: "/tmp/statestore",
-				caURL: "https://ca.org1.telefonica.com:7054",
-				caName: "ca.org1.telefonica.com",
-				caAdmin: "adminCA",
-				caPassword: "adminpw",
-				tlsOptions: {
-					trustedRoots:
-						"-----BEGIN CERTIFICATE-----MIICTjCCAfSgAwIBAgIRAPz6Z66RGDs2BDghYGuShw4wCgYIKoZIzj0EAwIwcTELMAkGA1UEBhMCRVMxDzANBgNVBAgTBk1hZHJpZDEPMA0GA1UEBxMGTWFkcmlkMRwwGgYDVQQKExNvcmcxLnRlbGVmb25pY2EuY29tMSIwIAYDVQQDExl0bHNjYS5vcmcxLnRlbGVmb25pY2EuY29tMB4XDTIwMDUxMjEzMDIwMFoXDTMwMDUxMDEzMDIwMFowcTELMAkGA1UEBhMCRVMxDzANBgNVBAgTBk1hZHJpZDEPMA0GA1UEBxMGTWFkcmlkMRwwGgYDVQQKExNvcmcxLnRlbGVmb25pY2EuY29tMSIwIAYDVQQDExl0bHNjYS5vcmcxLnRlbGVmb25pY2EuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEaJraPeAMD+qMba9gNfzwhhfSQNDStqhkvGdPKfxjl+5YoZ+AZkf5qXUPCbSVFh2rlIagZQzcxLnxRmwguEDJjaNtMGswDgYDVR0PAQH/BAQDAgGmMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEFBQcDATAPBgNVHRMBAf8EBTADAQH/MCkGA1UdDgQiBCDxTrECkDkA2zbsZ7US807jJKKmZ6E90QYkjC7szbQrQDAKBggqhkjOPQQDAgNIADBFAiEAmFFB79r8Jqu4QEgNRQEWEWrY9g70pEUIL4cwq7Zj//UCIDoOuRhihvbFsLTSNbK31VzmL5lXvZGwzvS60n9xk33B-----END CERTIFICATE-----",
-					verify: false,
-				},
-				mspId: "org1MSP",
-				walletID: "admin",
-				asLocalhost: true,
+			var ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
+
+			var config = {
+				stateStore: '/tmp/cloud',
+				caName: 'telefonicaca',
+				mspId: 'telefonicaMSP',
+				walletID: 'adminUser',
+				asLocalhost: false,
 				ccp: ccp,
 				chaincodeName: "identitycc",
 				fcn: "proxy",
-				channel: "telefonicachannel",
-			};
+				channel: "channel1"
+			}
+			
 			let identity = await wal.generateDID("RSA", "default", "secret");
 
 			await wal.setDefault(identity);
@@ -97,19 +91,20 @@ describe("Integration test", async() => {
 			console.log("Getting created key...");
 			await trustID.getIdentity(await wal.getDID("default"), await didUnlock.id);
 			const id = Date.now();
-			const res = await trustID.createService(await wal.getDID("default"), `vtn:trustos:service:${id}`, "chaincode", access,"telefonicachannel");
-			await trustID.updateService(await wal.getDID("default"), `vtn:trustos:service:${id}`, access);
+			const res = await trustID.createService(await wal.getDID("default"), `vtn:trustos:service:${id}`, "sacc", access,config.channel);
+			await trustID.updateServiceAccess(await wal.getDID("default"), `vtn:trustos:service:${id}`, access);
 			const result = await trustID.invoke(
 				await wal.getDID("default"),
 				`vtn:trustos:service:${id}`,
 				["set", "5", "100"],
-				"telefonicachannel"
+				config.channel
+				
 			);
 			await wal.networks["hf"].disconnectDriver();
 
 			expect(result).to.equal("100");
 		} catch (err) {
-			await wal.networks["hf"].disconnectDriver();
+			//await wal.networks["hf"].disconnectDriver();
 
 			console.log(err);
 		}
